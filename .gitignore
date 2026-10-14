@@ -1,0 +1,20 @@
+# Build output
+out/
+
+# Local tool caches
+.erofs_cache/
+*.apk.b64
+workdir/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Placeholder (uninstalled system app marker)
+module/system/placeholder

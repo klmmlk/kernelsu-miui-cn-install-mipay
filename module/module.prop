@@ -1,0 +1,6 @@
+id=cc.klmmlk.MiuiCNInstallMiPay
+name=为 MIUI/HyperOS 国行版外机型安装小米钱包
+version=v0.1.0
+versionCode=1
+author=klmmlk
+description=为小米/红米国际版或 EU 版（MIUI EU / HyperOS Global）安装国行小米钱包组件（MIpay / MipayService / MINextpay / MITSMClient），以支持 MiPay、公交卡、门禁卡。

@@ -1,0 +1,38 @@
+#!/sbin/sh
+
+#################
+# Initialization
+#################
+
+umask 022
+
+# echo before loading util_functions
+ui_print() { echo "$1"; }
+
+require_app() {
+  ui_print "*********************************************"
+  ui_print " 请通过 KernelSU 或 Magisk App 安装本模块！"
+  ui_print " 不要在 Recovery 中刷入。"
+  ui_print "*********************************************"
+  exit 1
+}
+
+#########################
+# Load util_functions.sh
+#########################
+
+OUTFD=$2
+ZIPFILE=$3
+
+mount /data 2>/dev/null
+
+if [ -f /data/adb/ksu/util_functions.sh ]; then
+  . /data/adb/ksu/util_functions.sh
+elif [ -f /data/adb/magisk/util_functions.sh ]; then
+  . /data/adb/magisk/util_functions.sh
+else
+  require_app
+fi
+
+install_module
+exit 0
