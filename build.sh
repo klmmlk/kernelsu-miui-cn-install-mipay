@@ -5,6 +5,12 @@
 #   bash build.sh                # build a dev zip (skips missing-APK checks)
 #   bash build.sh release        # build and verify a release zip (requires all APKs)
 #
+# APK 提取流程：
+#   1. 下载 K60 Ultra 国行卡刷包
+#   2. 解出 payload.bin
+#   3. 运行 bash scripts/extract_apks.sh <payload.bin>
+#   4. 再运行 bash build.sh release
+#
 # Uses Python's zipfile module for cross-platform support (works on
 # Windows Git Bash, macOS, and Linux; no `zip` binary required).
 
@@ -46,11 +52,12 @@ if [ "$MODE" = "release" ]; then
              MIUISecurityAdd SecurityOnetrackService MIUIFrequentPhrase; do
     dir="$MODULE_DIR/product/app/$app"
     if [ ! -d "$dir" ]; then
-      echo "ERROR: missing $dir. Required for release builds." >&2
+      echo "ERROR: missing $dir" >&2
+      echo "  → 请先运行: bash scripts/extract_apks.sh <payload.bin>" >&2
       exit 1
     fi
     if ! find "$dir" -maxdepth 1 -name '*.apk' -print -quit | grep -q .; then
-      echo "ERROR: $dir has no APK. Required for release builds." >&2
+      echo "ERROR: $dir has no APK. 请先运行 scripts/extract_apks.sh 提取。" >&2
       exit 1
     fi
   done

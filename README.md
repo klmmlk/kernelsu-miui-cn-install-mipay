@@ -4,6 +4,8 @@
 
 > ⚠️ **重要结论**：本模块在小米 13T（Android 16 + HyperOS 3.0.5.0）上**完整跑通了**——钱包 App 装上、TSM 服务跑起来、eSE 路由配置正确、4 个国行入口**全部显示**。但**点开后服务端拒绝**（`errorCode: 1090001 syncEse 失败`）。这是小米服务端策略问题，**模块无法解决**——只有刷国行 ROM 才能真正用上公交卡/门禁卡。
 
+> ⚠️ **APK 不在仓库里**：10 个 Pay app 是小米公司财产，仓库只包含模块脚本和占位目录。用户需要从自己下载的 K60 Ultra 国行卡刷包提取（见下方"构建"章节）。
+
 ---
 
 ## 项目目标
@@ -31,7 +33,7 @@
 
 ## 文件来源
 
-所有 APK 都从**红米 K60 Ultra 国行稳定版**（`miui_COROT_3.0.x.x_xxx_xxx.zip`）的 `payload.bin` 提取：
+所有 APK 都从**红米 K60 Ultra 国行稳定版**（`miui_COROT_3.0.x.x_xxx_xxx.zip`）的 `payload.bin` 提取，**不在本仓库中**：
 
 | APK | 来源 | 真实包名 | versionCode |
 |---|---|---|---|
@@ -282,23 +284,64 @@ adb reboot
 
 ## 从卡刷包提取 system.img → 解 EROFS → 找 Pay app
 
+**重要**：本仓库**不包含** 10 个 Pay app 的 APK（避免分发小米公司财产）。你需要自己提取：
+
+### 自动流程（推荐）
+
 ```bash
-# 1. 解 payload.bin（最新卡刷包都是这个格式）
+# 前置依赖
 pip install payload-dumper
-payload-dumper payload.bin --output ./extracted --partitions product,system,system_ext,vendor
+# 下载 erofs2ext4Converter 工具
+#   https://github.com/ljc-fight/erofs2ext4Converter-for-MIUI-Device
+#   把 bin/erofsUnpack.exe 放到本仓库的 bin/ 目录
 
-# 2. 解 EROFS（用 erofs2ext4Converter 工具）
-bin/erofsUnpack.exe extracted/product.img
+# 下载 K60 Ultra 国行卡刷包
+#   小米社区 / MIUI 官方下载页 → 红米 K60 Ultra → 中国稳定版
+#   解出 payload.bin（卡刷包里有）
+
+# 一键提取所有 10 个 Pay app（自动调 payload-dumper + erofsUnpack + apktool）
+bash scripts/extract_apks.sh /path/to/payload.bin
+```
+
+### 手动流程
+
+```bash
+# 1. 用 payload-dumper 提取 4 个分区镜像
+pip install payload-dumper
+py -m payload_dumper payload.bin --output ./extracted \
+  --partitions product,system,system_ext,vendor
+
+# 2. 用 erofsUnpack 解 EROFS 镜像（Windows 上用 erofs2ext4Converter 工具）
+bin/erofsUnpack.exe extracted/product.img   # → ./extracted/unpacked/product/...
 bin/erofsUnpack.exe extracted/system.img
-bin/erofsUnpack.exe extracted/system_ext.img
 
-# 3. 找 Pay app
-find extracted/product/app -maxdepth 1 -type d | grep -iE "MIpay|MIpayService|MINextpay|MITSMClient|MiTrustService|PaymentService|SoterService|MIUISecurityInputMethod|MIUISecurityAdd|SecurityOnetrackService|MIUIFrequentPhrase"
+# 3. 找 Pay app 并复制到模块目录
+find extracted/unpacked/product -maxdepth 1 -type d | \
+  grep -iE "MIpay|MIpayService|MINextpay|MITSMClient|MiTrustService|PaymentService|MIUISecurityInputMethod|MIUISecurityAdd|SecurityOnetrackService|MIUIFrequentPhrase"
 
-# 4. 复制到模块目录
-cp -r extracted/product/app/MIpay module/product/app/
-cp -r extracted/product/app/MipayService module/product/app/
-# ... 等等
+cp -r extracted/unpacked/product/data-app/MIpay module/product/app/
+cp -r extracted/unpacked/product/app/MipayService module/product/app/
+cp -r extracted/unpacked/product/app/MINextpay module/product/app/
+# ... 等等（参考 README 的"文件来源"章节）
+
+# 4. MITSMClient.apk 需要特殊处理：删 sharedUserId + 重签
+bash scripts/strip_tsm_shared_userid.sh
+```
+
+### 验证提取
+
+```bash
+# 确认 10 个 app 都在了
+for app in MIpay MipayService MINextpay MITSMClient \
+           MiTrustService PaymentService MIUISecurityInputMethod \
+           MIUISecurityAdd SecurityOnetrackService MIUIFrequentPhrase; do
+  apk="module/product/app/$app/$(ls module/product/app/$app/*.apk 2>/dev/null | xargs -n1 basename 2>/dev/null | head -1)"
+  if [ -f "$apk" ]; then
+    echo "✅ $app: $(stat -c%s "$apk" 2>/dev/null || stat -f%z "$apk") bytes"
+  else
+    echo "❌ $app: 缺失"
+  fi
+done
 ```
 
 ---
@@ -306,11 +349,14 @@ cp -r extracted/product/app/MipayService module/product/app/
 ## 构建模块
 
 ```bash
-bash build.sh dev       # 开发构建（不校验 APK）
-bash build.sh release   # 完整 release 构建（校验所有 10 个 APK 存在）
+# 开发构建（不校验 APK）——脚本会警告但仍构建
+bash build.sh dev
+
+# 完整 release 构建（需要所有 10 个 APK 在位）
+bash build.sh release
 ```
 
-构建产物：`out/cc.klmmlk.MiuiCNInstallMiPay.v0.1.0.zip` (约 137MB)
+构建产物：`out/cc.klmmlk.MiuiCNInstallMiPay.v0.1.0.zip`
 
 ---
 
